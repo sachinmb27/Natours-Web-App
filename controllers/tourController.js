@@ -59,10 +59,36 @@ exports.resizeTourImages = catchAsync(async (req, res, next) => {
   next();
 });
 
+// const tours = JSON.parse(fs.readFileSync(`${__dirname}/../dev-data/data/tours-simple.json`));
+
+// exports.checkID = (req, res, next, val) => {
+//   console.log(`Tour id is: ${val}`);
+//   if (req.params.id * 1 > tours.length) {
+//     return res.status(404).json({
+//       status: 'fail',
+//       message: 'Invalid ID'
+//     });
+//   }
+
+//   next();
+// };
+
+// exports.checkBody = (req, res, next) => {
+//   if (!req.body.name || !req.body.price) {
+//     return res.status(400).json({
+//       status: 'Fail',
+//       message: 'Missing name or price'
+//     });
+//   }
+
+//   next();
+// };
+
 exports.aliasTopTours = (req, res, next) => {
   req.query.limit = '5';
   req.query.sort = '-ratingsAverage,price';
   req.query.fields = 'name,price,ratingsAverage,summary,difficulty';
+
   next();
 };
 
@@ -105,7 +131,7 @@ exports.getTourStats = catchAsync(async (req, res, next) => {
 });
 
 exports.getMonthlyPlan = catchAsync(async (req, res, next) => {
-  const year = req.params.year * 1; // 2021
+  const year = req.params.year * 1;
 
   const plan = await Tour.aggregate([
     {
@@ -130,9 +156,7 @@ exports.getMonthlyPlan = catchAsync(async (req, res, next) => {
       $addFields: { month: '$_id' }
     },
     {
-      $project: {
-        _id: 0
-      }
+      $project: { _id: 0 }
     },
     {
       $sort: { numTourStarts: -1 }
@@ -144,28 +168,25 @@ exports.getMonthlyPlan = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: 'success',
+    results: plan.length,
     data: {
       plan
     }
   });
 });
 
-// /tours-within/:distance/center/:latlng/unit/:unit
-// /tours-within/233/center/34.111745,-118.113491/unit/mi
 exports.getToursWithin = catchAsync(async (req, res, next) => {
   const { distance, latlng, unit } = req.params;
   const [lat, lng] = latlng.split(',');
 
+  // const multiplier = unit === 'mi' ? 0.000621371 : 0.001;
   const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1;
 
   if (!lat || !lng) {
-    next(
-      new AppError(
-        'Please provide latitutr and longitude in the format lat,lng.',
-        400
-      )
-    );
+    next(new AppError('Please provide latitutr and longitude in the format lat,lng.', 400));
   }
+
+  // console.log(distance, lat, lng, unit);
 
   const tours = await Tour.find({
     startLocation: { $geoWithin: { $centerSphere: [[lng, lat], radius] } }
@@ -187,12 +208,7 @@ exports.getDistances = catchAsync(async (req, res, next) => {
   const multiplier = unit === 'mi' ? 0.000621371 : 0.001;
 
   if (!lat || !lng) {
-    next(
-      new AppError(
-        'Please provide latitutr and longitude in the format lat,lng.',
-        400
-      )
-    );
+    next(new AppError('Please provide latitutr and longitude in the format lat,lng.', 400));
   }
 
   const distances = await Tour.aggregate([

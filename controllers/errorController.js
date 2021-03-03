@@ -1,4 +1,16 @@
 const AppError = require('./../utils/appError');
+const ErrorStack = require('./../models/errorModel');
+
+const saveError = async err => {
+  const newError = await ErrorStack.create({
+    status: err.status,
+    error: err,
+    message: err.message,
+    stack: err.stack
+  });
+
+  return newError.id;
+};
 
 const handleCastErrorDB = err => {
   const message = `Invalid ${err.path}: ${err.value}.`;
@@ -7,7 +19,6 @@ const handleCastErrorDB = err => {
 
 const handleDuplicateFieldsDB = err => {
   const value = err.errmsg.match(/(["'])(\\?.)*?\1/)[0];
-  console.log(value);
 
   const message = `Duplicate field value: ${value}. Please use another value!`;
   return new AppError(message, 400);
@@ -20,13 +31,12 @@ const handleValidationErrorDB = err => {
   return new AppError(message, 400);
 };
 
-const handleJWTError = () =>
-  new AppError('Invalid token. Please log in again!', 401);
+const handleJWTError = () => new AppError('Invalid token. Please log in again!', 401);
 
 const handleJWTExpiredError = () =>
   new AppError('Your token has expired! Please log in again.', 401);
 
-const sendErrorDev = (err, req, res) => {
+const sendErrorDev = async (err, req, res) => {
   // A) API
   if (req.originalUrl.startsWith('/api')) {
     return res.status(err.statusCode).json({
@@ -39,48 +49,55 @@ const sendErrorDev = (err, req, res) => {
 
   // B) RENDERED WEBSITE
   console.error('ERROR 💥', err);
+  const errorId = await saveError(err);
   return res.status(err.statusCode).render('error', {
     title: 'Something went wrong!',
-    msg: err.message
+    msg: `${err.message} (${errorId})`
   });
 };
 
-const sendErrorProd = (err, req, res) => {
+const sendErrorProd = async (err, req, res) => {
   // A) API
   if (req.originalUrl.startsWith('/api')) {
     // A) Operational, trusted error: send message to client
     if (err.isOperational) {
+      const errorId = await saveError(err);
       return res.status(err.statusCode).json({
         status: err.status,
-        message: err.message
+        message: `${err.message} (${errorId})`
       });
     }
+
     // B) Programming or other unknown error: don't leak error details
     // 1) Log error
     console.error('ERROR 💥', err);
     // 2) Send generic message
+    const errorId = await saveError(err);
     return res.status(500).json({
       status: 'error',
-      message: 'Something went very wrong!'
+      message: `Something went wrong! (${errorId})`
     });
   }
 
   // B) RENDERED WEBSITE
   // A) Operational, trusted error: send message to client
   if (err.isOperational) {
-    console.log(err);
+    // console.log(err);
+    const errorId = await saveError(err);
     return res.status(err.statusCode).render('error', {
       title: 'Something went wrong!',
-      msg: err.message
+      msg: `${err.message} (${errorId})`
     });
   }
+
   // B) Programming or other unknown error: don't leak error details
   // 1) Log error
   console.error('ERROR 💥', err);
   // 2) Send generic message
+  const errorId = await saveError(err);
   return res.status(err.statusCode).render('error', {
     title: 'Something went wrong!',
-    msg: 'Please try again later.'
+    msg: `Please try again later. (${errorId})`
   });
 };
 
@@ -98,8 +115,7 @@ module.exports = (err, req, res, next) => {
 
     if (error.name === 'CastError') error = handleCastErrorDB(error);
     if (error.code === 11000) error = handleDuplicateFieldsDB(error);
-    if (error.name === 'ValidationError')
-      error = handleValidationErrorDB(error);
+    if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
     if (error.name === 'JsonWebTokenError') error = handleJWTError();
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
 

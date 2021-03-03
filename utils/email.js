@@ -2,14 +2,16 @@ const nodemailer = require('nodemailer');
 const pug = require('pug');
 const htmlToText = require('html-to-text');
 
+// For create email obj to send actual emails.
 module.exports = class Email {
   constructor(user, url) {
     this.to = user.email;
     this.firstName = user.name.split(' ')[0];
     this.url = url;
-    this.from = `Sachin M B <${process.env.EMAIL_FROM}>`;
+    this.from = `Sachin MB <${process.env.EMAIL_FROM}>`;
   }
 
+  // Create different transports for different environments
   newTransport() {
     if (process.env.NODE_ENV === 'production') {
       // Sendgrid
@@ -59,9 +61,6 @@ module.exports = class Email {
   }
 
   async sendPasswordReset() {
-    await this.send(
-      'passwordReset',
-      'Your password reset token (valid for only 10 minutes)'
-    );
+    await this.send('passwordReset', 'Your password reset token (valid for only 10 minutes)');
   }
 };
